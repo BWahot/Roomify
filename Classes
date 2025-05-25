@@ -1,0 +1,271 @@
+import java.util.*;
+
+// Abstract base class
+abstract class Person {
+    protected String name;
+    protected String id;
+    protected String password;
+
+    public Person(String name, String id, String password) {
+        this.name = name;
+        this.id = id;
+        this.password = password;
+    }
+
+    public String getName() { return name; }
+    public String getId() { return id; }
+    public String getPassword() { return password; }
+}
+
+// Polymorphic interface
+interface User {
+    boolean login(String id, String password);
+}
+
+class Student extends Person implements User {
+    private Room assignedRoom;
+    private Fee feeStatus;
+    private boolean isApproved;
+
+    public Student(String name, String id, String password) {
+        super(name, id, password);
+        this.feeStatus = new Fee();
+        this.isApproved = false;
+    }
+
+    public Room getAssignedRoom() { return assignedRoom; }
+    public Fee getFeeStatus() { return feeStatus; }
+    public boolean isApproved() { return isApproved; }
+
+    public void approve() { this.isApproved = true; }
+    public void setAssignedRoom(Room room) { this.assignedRoom = room; }
+
+    @Override
+    public boolean login(String id, String password) {
+        return this.id.equals(id) && this.password.equals(password) && isApproved;
+    }
+
+    @Override
+    public String toString() {
+        return "Student: " + name + ", ID: " + id + ", Room: " +
+                (assignedRoom != null ? assignedRoom.getRoomNumber() : "None") +
+                ", Fee Paid: " + (feeStatus.isPaid() ? "Yes" : "No");
+    }
+}
+
+class Admin extends Person implements User {
+    public Admin() {
+        super("admin", "admin", "pass123");
+    }
+
+    @Override
+    public boolean login(String id, String password) {
+        return this.id.equals(id) && this.password.equals(password);
+    }
+}
+
+class Room {
+    private int roomNumber;
+    private int maxCapacity;
+    private List<Student> assignedStudents;
+
+    public Room(int roomNumber, int maxCapacity) {
+        this.roomNumber = roomNumber;
+        this.maxCapacity = maxCapacity;
+        this.assignedStudents = new ArrayList<>();
+    }
+
+    public int getRoomNumber() { return roomNumber; }
+
+    public boolean isAvailable() {
+        return assignedStudents.size() < maxCapacity;
+    }
+
+    public boolean addStudent(Student student) {
+        if (isAvailable()) {
+            assignedStudents.add(student);
+            student.setAssignedRoom(this);
+            return true;
+        }
+        return false;
+    }
+}
+
+class Fee {
+    private double amount;
+    private boolean isPaid;
+
+    public Fee() {
+        this.amount = 5000.0;
+        this.isPaid = false;
+    }
+
+    public double getAmount() { return amount; }
+    public boolean isPaid() { return isPaid; }
+    public void payFee() { this.isPaid = true; }
+}
+
+class HostelSystem {
+    private List<Room> rooms = new ArrayList<>();
+    private List<Student> pendingStudents = new ArrayList<>();
+    private List<Student> approvedStudents = new ArrayList<>();
+
+    public void addRoom(Room room) {
+        rooms.add(room);
+    }
+
+    public void registerStudent(Student student) {
+        for (Student s : pendingStudents) {
+            if (s.getId().equals(student.getId())) {
+                System.out.println("Student ID already registered.");
+                return;
+            }
+        }
+        pendingStudents.add(student);
+        System.out.println("Student registered. Awaiting admin approval.");
+    }
+
+    public Student loginStudent(String id, String pass) {
+        for (Student s : approvedStudents) {
+            if (s.login(id, pass)) return s;
+        }
+        return null;
+    }
+
+    public void viewPendingStudents() {
+        if (pendingStudents.isEmpty()) {
+            System.out.println("No pending students.");
+            return;
+        }
+        for (Student s : pendingStudents) {
+            System.out.println("- " + s.getName() + " (ID: " + s.getId() + ")");
+        }
+    }
+
+    public void approveStudent(String studentId) {
+        Iterator<Student> iterator = pendingStudents.iterator();
+        while (iterator.hasNext()) {
+            Student s = iterator.next();
+            if (s.getId().equals(studentId)) {
+                s.approve();
+                assignRoom(s);
+                approvedStudents.add(s);
+                iterator.remove();
+                System.out.println("Student approved and assigned room.");
+                return;
+            }
+        }
+        System.out.println("Student ID not found.");
+    }
+
+    public void denyStudent(String studentId) {
+        pendingStudents.removeIf(s -> s.getId().equals(studentId));
+        System.out.println("Student denied and removed.");
+    }
+
+    private void assignRoom(Student student) {
+        for (Room r : rooms) {
+            if (r.addStudent(student)) return;
+        }
+        System.out.println("No available rooms to assign.");
+    }
+
+    public void viewFeeStatus() {
+        for (Student s : approvedStudents) {
+            System.out.println(s);
+        }
+    }
+}
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        HostelSystem system = new HostelSystem();
+        Admin admin = new Admin();
+
+        system.addRoom(new Room(101, 2));
+        system.addRoom(new Room(102, 2));
+
+        while (true) {
+            System.out.println("\n=== Hostel Management System ===");
+            System.out.println("1. Register as Student");
+            System.out.println("2. Student Login");
+            System.out.println("3. Admin Login");
+            System.out.println("4. Exit");
+            System.out.print("Choice: ");
+            int choice = Integer.parseInt(scanner.nextLine());
+
+            switch (choice) {
+                case 1: {
+                    System.out.print("Name: ");
+                    String name = scanner.nextLine();
+                    System.out.print("Student ID: ");
+                    String id = scanner.nextLine();
+                    System.out.print("Password: ");
+                    String pass = scanner.nextLine();
+                    system.registerStudent(new Student(name, id, pass));
+                    break;
+                }
+                case 2: {
+                    System.out.print("Student ID: ");
+                    String id = scanner.nextLine();
+                    System.out.print("Password: ");
+                    String pass = scanner.nextLine();
+                    Student s = system.loginStudent(id, pass);
+                    if (s != null) {
+                        System.out.println("Welcome, " + s.getName());
+                        System.out.println(s);
+                        if (!s.getFeeStatus().isPaid()) {
+                            System.out.print("Do you want to pay the fee? (yes/no): ");
+                            if (scanner.nextLine().equalsIgnoreCase("yes")) {
+                                s.getFeeStatus().payFee();
+                                System.out.println("Fee payment successful.");
+                            }
+                        } else {
+                            System.out.println("Fee already paid.");
+                        }
+                    } else {
+                        System.out.println("Login failed or not approved.");
+                    }
+                    break;
+                }
+                case 3: {
+                    System.out.print("Admin ID: ");
+                    String id = scanner.nextLine();
+                    System.out.print("Password: ");
+                    String pass = scanner.nextLine();
+                    if (!admin.login(id, pass)) {
+                        System.out.println("Invalid admin credentials.");
+                        break;
+                    }
+                    while (true) {
+                        System.out.println("\n--- Admin Dashboard ---");
+                        System.out.println("1. View Pending Students");
+                        System.out.println("2. Approve Student");
+                        System.out.println("3. Deny Student");
+                        System.out.println("4. View Fee Statuses");
+                        System.out.println("5. Logout");
+                        System.out.print("Choice: ");
+                        int adminChoice = Integer.parseInt(scanner.nextLine());
+
+                        if (adminChoice == 1) system.viewPendingStudents();
+                        else if (adminChoice == 2) {
+                            System.out.print("Enter student ID to approve: ");
+                            system.approveStudent(scanner.nextLine());
+                        } else if (adminChoice == 3) {
+                            System.out.print("Enter student ID to deny: ");
+                            system.denyStudent(scanner.nextLine());
+                        } else if (adminChoice == 4) system.viewFeeStatus();
+                        else break;
+                    }
+                    break;
+                }
+                case 4:
+                    System.out.println("Goodbye!");
+                    return;
+                default:
+                    System.out.println("Invalid input.");
+            }
+        }
+    }
+}
